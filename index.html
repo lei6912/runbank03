@@ -4,15 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>5421 Enjoy組團結日#03 - 熱量大罷工</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React & ReactDOM -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Babel for JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #FDF8F1; }
@@ -23,34 +18,50 @@
 <body>
     <div id="root"></div>
 
-    <script type="module" type="text/babel">
-        // --- 1. Firebase 模組載入 ---
+    <!-- 修復 #1：Firebase 用獨立的 type="module" script，並透過 window 傳出去 -->
+    <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, doc, onSnapshot, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-        // --- 2. 配置您的 Firebase ---
-        // 請在此處填入您從 Firebase Console 取得的配置
         const firebaseConfig = {
-  apiKey: "AIzaSyAUaLguLxZOpleEDLfwfpro0FOr1xxArE0",
-  authDomain: "runningbank-event03.firebaseapp.com",
-  projectId: "runningbank-event03",
-  storageBucket: "runningbank-event03.firebasestorage.app",
-  messagingSenderId: "782504636284",
-  appId: "1:782504636284:web:61e96d3fe2dcb5fe453ef9"
+            apiKey: "AIzaSyAUaLguLxZOpleEDLfwfpro0FOr1xxArE0",
+            authDomain: "runningbank-event03.firebaseapp.com",
+            projectId: "runningbank-event03",
+            storageBucket: "runningbank-event03.firebasestorage.app",
+            messagingSenderId: "782504636284",
+            appId: "1:782504636284:web:61e96d3fe2dcb5fe453ef9"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-        const COLLECTION_PREFIX = "unity_day_v3"; // 這次活動的資料識別
 
+        // 透過 window 傳給 Babel script
+        window._firebase = { db, auth, collection, doc, onSnapshot, setDoc, deleteDoc, signInAnonymously, onAuthStateChanged };
+
+        // 通知 React App Firebase 已就緒
+        window.dispatchEvent(new Event('firebase-ready'));
+    </script>
+
+    <!-- 修復 #2：React/JSX 用 type="text/babel"，從 window._firebase 取得 Firebase -->
+    <script type="text/babel">
         const PARTICIPANTS = ["陳弘明", "鄭宏洋", "鄭伯", "佳宜*雞蛋花", "議德", "傑克", "James Liu", "泰淼", "楊哲銘", "高聖智", "臣賢", "陳一郎", "angle卿", "科銘", "雷皇正", "蔡若瑋"];
         const TARGET_CALORIES = 5000;
-
         const { useState, useEffect, useMemo } = React;
 
+        // 簡易 SVG 圖示（取代 Lucide，避免初始化時序問題）
+        const Icon = ({ name }) => {
+            const icons = {
+                thermometer: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{display:'inline',verticalAlign:'middle'}}><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>,
+                'edit-2': <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>,
+                'trash-2': <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>,
+            };
+            return icons[name] || null;
+        };
+
         const App = () => {
+            const [firebaseReady, setFirebaseReady] = useState(!!window._firebase);
             const [user, setUser] = useState(null);
             const [activeTab, setActiveTab] = useState('report');
             const [registrations, setRegistrations] = useState([]);
@@ -60,16 +71,26 @@
             const [editingId, setEditingId] = useState(null);
             const [msg, setMsg] = useState({ type: '', text: '' });
 
+            // 等待 Firebase 就緒
+            useEffect(() => {
+                if (window._firebase) { setFirebaseReady(true); return; }
+                const handler = () => setFirebaseReady(true);
+                window.addEventListener('firebase-ready', handler);
+                return () => window.removeEventListener('firebase-ready', handler);
+            }, []);
+
             // 認證
             useEffect(() => {
+                if (!firebaseReady) return;
+                const { auth, signInAnonymously, onAuthStateChanged } = window._firebase;
                 signInAnonymously(auth).catch(err => console.error("Auth Error", err));
-                const unsub = onAuthStateChanged(auth, setUser);
-                return unsub;
-            }, []);
+                return onAuthStateChanged(auth, setUser);
+            }, [firebaseReady]);
 
             // 資料監聽
             useEffect(() => {
                 if (!user) return;
+                const { db, collection, onSnapshot } = window._firebase;
                 const unsubReg = onSnapshot(collection(db, "registrations_v3"), (snap) => {
                     setRegistrations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
                     setLoading(false);
@@ -80,7 +101,6 @@
                 return () => { unsubReg(); unsubReport(); };
             }, [user]);
 
-            // 邏輯
             const roundK = (val) => {
                 const n = parseFloat(val); if (isNaN(n)) return 0;
                 return (n - Math.floor(n) > 0.1100001) ? Math.ceil(n) : Math.floor(n);
@@ -93,8 +113,14 @@
             const availableList = useMemo(() => {
                 const data = activeTab === 'reg' ? registrations : reports;
                 const used = data.map(d => d.name);
-                return PARTICIPANTS.filter(n => (editingId && data.find(i=>i.id===editingId)?.name === n) || !used.includes(n));
+                return PARTICIPANTS.filter(n => (editingId && data.find(i => i.id === editingId)?.name === n) || !used.includes(n));
             }, [activeTab, registrations, reports, editingId]);
+
+            // 修復 #3：補上缺少的 handleEdit 函數
+            const handleEdit = (item) => {
+                setEditingId(item.id);
+                setFormData({ name: item.name, mileage: item.rawMileage || String(item.mileage) });
+            };
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
@@ -102,7 +128,7 @@
                 if (activeTab === 'report' && !/^\d+\.\d{2}$/.test(formData.mileage)) {
                     setMsg({ type: 'error', text: '回報請補足小數兩位 (如: 5.00)' }); return;
                 }
-
+                const { db, doc, setDoc } = window._firebase;
                 const col = activeTab === 'reg' ? "registrations_v3" : "reports_v3";
                 const id = editingId || `${formData.name}_${Date.now()}`;
                 try {
@@ -116,12 +142,19 @@
                 } catch (err) { setMsg({ type: 'error', text: '存檔失敗' }); }
             };
 
+            const handleDelete = async (item) => {
+                if (!confirm('刪除？')) return;
+                const { db, doc, deleteDoc } = window._firebase;
+                const col = activeTab === 'reg' ? "registrations_v3" : "reports_v3";
+                await deleteDoc(doc(db, col, item.id));
+            };
+
             const totalReg = registrations.reduce((a, c) => a + getCals(c.mileage), 0);
             const totalRep = reports.reduce((a, c) => a + getCals(c.mileage), 0);
             const curVal = activeTab === 'reg' ? totalReg : totalRep;
             const pct = Math.min(100, (curVal / TARGET_CALORIES) * 100);
 
-            if (loading) return <div className="flex h-screen items-center justify-center font-bold text-orange-500">載入中...</div>;
+            if (!firebaseReady || loading) return <div className="flex h-screen items-center justify-center font-bold text-orange-500">載入中...</div>;
 
             return (
                 <div className="pb-32">
@@ -136,42 +169,42 @@
                     <div className="max-w-md mx-auto px-5 -mt-6">
                         <div className="bg-white p-6 rounded-3xl shadow-xl border mb-6">
                             <div className="flex justify-between items-center mb-4 font-black">
-                                <span><i data-lucide="thermometer" className="inline text-orange-500 mr-1"></i>目標消耗進度</span>
+                                <span><Icon name="thermometer" /> 目標消耗進度</span>
                                 <span className="text-orange-600 text-xl">{curVal} <small className="text-slate-400 text-xs">/ 5000 kcal</small></span>
                             </div>
                             <div className="h-8 bg-slate-100 rounded-full p-1 border">
-                                <div className={`h-full rounded-lg transition-all duration-700 ${activeTab==='reg'?'bg-amber-400':'bg-orange-500'}`} style={{width: `${pct}%`}}></div>
+                                <div className={`h-full rounded-lg transition-all duration-700 ${activeTab === 'reg' ? 'bg-amber-400' : 'bg-orange-500'}`} style={{ width: `${pct}%` }}></div>
                             </div>
                             {pct >= 100 && <div className="text-center text-green-600 font-bold mt-2 text-xs">罷工達成！</div>}
                         </div>
 
                         <div className="flex bg-slate-200 rounded-2xl p-1 mb-6">
-                            <button onClick={()=>{setActiveTab('reg');setEditingId(null);setFormData({name:'',mileage:''});}} className={`flex-1 py-3 rounded-xl font-black text-sm ${activeTab==='reg'?'bg-white text-orange-600 shadow-md':'text-slate-500'}`}>活動報名</button>
-                            <button onClick={()=>{setActiveTab('report');setEditingId(null);setFormData({name:'',mileage:''});}} className={`flex-1 py-3 rounded-xl font-black text-sm ${activeTab==='report'?'bg-white text-red-600 shadow-md':'text-slate-500'}`}>里程回報</button>
+                            <button onClick={() => { setActiveTab('reg'); setEditingId(null); setFormData({ name: '', mileage: '' }); }} className={`flex-1 py-3 rounded-xl font-black text-sm ${activeTab === 'reg' ? 'bg-white text-orange-600 shadow-md' : 'text-slate-500'}`}>活動報名</button>
+                            <button onClick={() => { setActiveTab('report'); setEditingId(null); setFormData({ name: '', mileage: '' }); }} className={`flex-1 py-3 rounded-xl font-black text-sm ${activeTab === 'report' ? 'bg-white text-red-600 shadow-md' : 'text-slate-500'}`}>里程回報</button>
                         </div>
 
                         <div className="bg-white p-6 rounded-3xl shadow-lg mb-8">
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <select value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} className="w-full p-4 rounded-xl border bg-slate-50 font-bold" disabled={!!editingId}>
+                            <div className="space-y-4">
+                                <select value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full p-4 rounded-xl border bg-slate-50 font-bold" disabled={!!editingId}>
                                     <option value="">選擇組員...</option>
                                     {availableList.map(p => <option key={p} value={p}>{p}</option>)}
                                 </select>
-                                <input type="text" value={formData.mileage} onChange={e=>setFormData({...formData, mileage:e.target.value})} placeholder={activeTab==='reg'?'報名里程':'實際里程(5.00)'} className="w-full p-4 rounded-xl border bg-slate-50 font-bold" />
-                                {msg.text && <div className={`text-xs font-bold p-2 rounded ${msg.type==='success'?'bg-green-50 text-green-600':'bg-red-50 text-red-600'}`}>{msg.text}</div>}
-                                <button type="submit" className={`w-full py-4 rounded-xl text-white font-black text-lg ${activeTab==='reg'?'bg-orange-500':'bg-red-600'}`}>{editingId?'儲存修改':'送出'}</button>
-                                {editingId && <button onClick={()=>setEditingId(null)} className="w-full text-slate-400 text-xs font-bold">取消修改</button>}
-                            </form>
+                                <input type="text" value={formData.mileage} onChange={e => setFormData({ ...formData, mileage: e.target.value })} placeholder={activeTab === 'reg' ? '報名里程' : '實際里程(5.00)'} className="w-full p-4 rounded-xl border bg-slate-50 font-bold" />
+                                {msg.text && <div className={`text-xs font-bold p-2 rounded ${msg.type === 'success' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{msg.text}</div>}
+                                <button onClick={handleSubmit} className={`w-full py-4 rounded-xl text-white font-black text-lg ${activeTab === 'reg' ? 'bg-orange-500' : 'bg-red-600'}`}>{editingId ? '儲存修改' : '送出'}</button>
+                                {editingId && <button onClick={() => setEditingId(null)} className="w-full text-slate-400 text-xs font-bold">取消修改</button>}
+                            </div>
                         </div>
 
                         <div className="space-y-3">
                             <h3 className="font-black px-2 flex justify-between">
-                                <span>{activeTab==='reg'?'報名清單':'回報清單'}</span>
-                                <span className="text-[10px] text-slate-400">總計 {activeTab==='reg'?registrations.length:reports.length} 人</span>
+                                <span>{activeTab === 'reg' ? '報名清單' : '回報清單'}</span>
+                                <span className="text-[10px] text-slate-400">總計 {activeTab === 'reg' ? registrations.length : reports.length} 人</span>
                             </h3>
-                            {(activeTab==='reg'?registrations:reports).map(item => (
+                            {(activeTab === 'reg' ? registrations : reports).map(item => (
                                 <div key={item.id} className="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center group">
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-black ${activeTab==='reg'?'bg-amber-400':'bg-orange-500'}`}>{item.name[0]}</div>
+                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-black ${activeTab === 'reg' ? 'bg-amber-400' : 'bg-orange-500'}`}>{item.name[0]}</div>
                                         <div>
                                             <div className="font-black text-sm">{item.name}</div>
                                             <div className="text-[10px] text-slate-400">{item.rawMileage}K ➔ {roundK(item.mileage)}K</div>
@@ -180,8 +213,8 @@
                                     <div className="flex items-center gap-3">
                                         <span className="font-black text-lg">{getCals(item.mileage)} <small className="text-[8px] text-slate-400">kcal</small></span>
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button onClick={()=>handleEdit(item)} className="text-blue-400 p-1"><i data-lucide="edit-2" size="14"></i></button>
-                                            <button onClick={async()=> {if(confirm('刪除？')) await deleteDoc(doc(db, activeTab==='reg'?"registrations_v3":"reports_v3", item.id))}} className="text-red-400 p-1"><i data-lucide="trash-2" size="14"></i></button>
+                                            <button onClick={() => handleEdit(item)} className="text-blue-400 p-1"><Icon name="edit-2" /></button>
+                                            <button onClick={() => handleDelete(item)} className="text-red-400 p-1"><Icon name="trash-2" /></button>
                                         </div>
                                     </div>
                                 </div>
@@ -191,9 +224,9 @@
 
                     <div className="fixed bottom-6 left-0 right-0 flex justify-center z-50">
                         <div className="bg-white border-2 border-black rounded-full px-6 py-2 flex items-center gap-4 shadow-2xl">
-                            <div className="text-[8px] font-black leading-tight text-center">BOGOTO<br/>BANK</div>
+                            <div className="text-[8px] font-black leading-tight text-center">BOGOTO<br />BANK</div>
                             <div className="bg-black text-white w-8 h-8 rounded-full flex items-center justify-center font-black text-sm">03</div>
-                            <div className="text-[8px] font-black leading-tight text-center">ENJOY 組<br/>16th</div>
+                            <div className="text-[8px] font-black leading-tight text-center">ENJOY 組<br />16th</div>
                         </div>
                     </div>
                 </div>
@@ -202,9 +235,6 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-
-        // 初始化 Lucide 圖示
-        setTimeout(() => lucide.createIcons(), 1000);
     </script>
 </body>
 </html>
