@@ -62,16 +62,27 @@
 
     <!-- Report Form -->
     <section class="form-card" id="formReport" style="display:none">
-      <div class="form-row-header">
-        <label>姓名 *</label>
-        <span class="slots-left" id="reportSlotsLeft">剩 — 位組員</span>
+      <!-- 🔒 鎖定 Banner（5/1 前顯示） -->
+      <div class="lock-banner" id="reportLockBanner">
+        <div class="lock-icon">🔒</div>
+        <div class="lock-text">
+          <strong>里程回報尚未開放</strong>
+          <span>請於 5/1 活動當天再回填里程數</span>
+        </div>
       </div>
-      <select id="reportName" class="select-input">
-        <option value="">請選取組員...</option>
-      </select>
-      <label class="form-label">實際完成里程 (K) *</label>
-      <input type="number" id="reportKm" class="text-input" placeholder="例如：5.00" step="0.01" min="0" />
-      <button class="submit-btn report-btn" onclick="submitReport()">確認送出里程</button>
+      <!-- 表單內容（5/1 後顯示） -->
+      <div id="reportFormInner">
+        <div class="form-row-header">
+          <label>姓名 *</label>
+          <span class="slots-left" id="reportSlotsLeft">剩 — 位組員</span>
+        </div>
+        <select id="reportName" class="select-input">
+          <option value="">請選取組員...</option>
+        </select>
+        <label class="form-label">實際完成里程 (K) *</label>
+        <input type="number" id="reportKm" class="text-input" placeholder="例如：5.00" step="0.01" min="0" />
+        <button class="submit-btn report-btn" onclick="submitReport()">確認送出里程</button>
+      </div>
     </section>
 
     <!-- Brand Footer -->

@@ -1,5 +1,4 @@
 // ── Firebase Config ──────────────────────────────────────────────────
-// 🔧 請將下方的 firebaseConfig 替換成您自己的 Firebase 專案設定
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, deleteDoc,
@@ -8,22 +7,25 @@ import {
 
 const firebaseConfig = {
   apiKey: "AIzaSyA6gHbHb4Gp0y5bmDOp_JJVhuxPQARWpJM",
-    authDomain: "runbank03.firebaseapp.com",
-    databaseURL: "https://runbank03-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "runbank03",
-    storageBucket: "runbank03.firebasestorage.app",
-    messagingSenderId: "973280333324",
-    appId: "1:973280333324:web:0426d89a943f5732a26829"
+  authDomain: "runbank03.firebaseapp.com",
+  databaseURL: "https://runbank03-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "runbank03",
+  storageBucket: "runbank03.firebasestorage.app",
+  messagingSenderId: "973280333324",
+  appId: "1:973280333324:web:0426d89a943f5732a26829"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // ── Activity Config ───────────────────────────────────────────────────
-const EVENT_ID = "event03"; // 每次活動修改此 ID 以隔離資料
+const EVENT_ID = "event03";
 const TARGET_KCAL = 5000;
 
-// 組員名單（報名前的全員清單）
+// ✅ 里程回報開放日期（台灣時間 2026/5/1 00:00:00）
+const REPORT_OPEN_DATE = new Date("2026-05-01T00:00:00+08:00");
+
+// 組員名單
 const ALL_MEMBERS = [
   "ames Liu", "angle卿 💕💫", "佳宜*雞蛋花", "傑克", "泰淼",
   "科銘", "臣賢", "議德", "鄭伯", "鄭宏洋",
@@ -31,14 +33,18 @@ const ALL_MEMBERS = [
 ];
 
 // ── State ─────────────────────────────────────────────────────────────
-let registrations = []; // { id, name, plannedKm, createdAt }
-let reports = [];       // { id, name, actualKm, kcal, createdAt }
+let registrations = [];
+let reports = [];
 let editingId = null;
 let currentTab = "register";
 
+// ── 里程回報是否開放 ──────────────────────────────────────────────────
+function isReportOpen() {
+  return new Date() >= REPORT_OPEN_DATE;
+}
+
 // ── Calorie Formula ───────────────────────────────────────────────────
 function calcKcal(km) {
-  // Round up if decimal > 0.11
   const whole = Math.floor(km);
   const dec = km - whole;
   const rounded = dec > 0.11 ? whole + 1 : whole;
@@ -48,16 +54,25 @@ function calcKcal(km) {
 
 // ── Firebase Listeners ────────────────────────────────────────────────
 function startListeners() {
+  // ✅ 先用靜態名單渲染一次，Firebase 未返回前下拉就有人可選
+  renderDropdowns();
+  renderReportLockUI();
+
   const regRef = collection(db, EVENT_ID, "data", "registrations");
   onSnapshot(query(regRef, orderBy("createdAt")), snap => {
     registrations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     render();
+  }, err => {
+    console.error("Firestore registrations 錯誤:", err);
+    showToast("⚠️ Firebase 連線失敗，請確認 Firestore 規則");
   });
 
   const repRef = collection(db, EVENT_ID, "data", "reports");
   onSnapshot(query(repRef, orderBy("createdAt")), snap => {
     reports = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     render();
+  }, err => {
+    console.error("Firestore reports 錯誤:", err);
   });
 }
 
@@ -66,48 +81,49 @@ function render() {
   renderProgress();
   renderDropdowns();
   renderMemberList();
+  renderReportLockUI();
+}
+
+// ✅ 回報鎖定 UI 控制
+function renderReportLockUI() {
+  const locked = !isReportOpen();
+  const lockBanner = document.getElementById("reportLockBanner");
+  const formInner = document.getElementById("reportFormInner");
+  if (lockBanner) lockBanner.style.display = locked ? "flex" : "none";
+  if (formInner) formInner.style.display = locked ? "none" : "block";
 }
 
 function renderProgress() {
-  const activeTab = currentTab;
-
   let total = 0;
-  let label = "目標消耗進度";
   let sublabel = "實際罷工能量";
 
-  if (activeTab === "register") {
-    // Show planned kcal
+  if (currentTab === "register") {
     total = registrations.reduce((s, r) => {
       const km = parseFloat(r.plannedKm) || 0;
       return s + calcKcal(km);
     }, 0);
-    label = "目標消耗進度";
     sublabel = "預計罷工能量";
   } else {
-    // Show actual kcal
     total = reports.reduce((s, r) => s + (r.kcal || 0), 0);
-    label = "目標消耗進度";
     sublabel = "實際罷工能量";
   }
 
   document.getElementById("totalKcal").textContent = total.toLocaleString();
-  document.getElementById("progressLabel").textContent = label;
   document.getElementById("progressSublabel").textContent = sublabel;
 
   const pct = Math.min((total / TARGET_KCAL) * 100, 100);
   const bar = document.getElementById("progressBar");
-  bar.style.width = Math.max(pct, 10) + "%";
+  bar.style.width = (pct > 0 ? Math.max(pct, 10) : 0) + "%";
   bar.classList.toggle("full", total >= TARGET_KCAL);
 
-  const msg = document.getElementById("successMsg");
-  msg.classList.toggle("show", total >= TARGET_KCAL);
+  document.getElementById("successMsg").classList.toggle("show", total >= TARGET_KCAL);
 }
 
 function renderDropdowns() {
   const registeredNames = new Set(registrations.map(r => r.name));
   const reportedNames = new Set(reports.map(r => r.name));
 
-  // Registration dropdown: exclude already registered
+  // 報名下拉：從靜態 ALL_MEMBERS 過濾已報名者
   const regSelect = document.getElementById("registerName");
   const regVal = regSelect.value;
   regSelect.innerHTML = '<option value="">請選取組員...</option>';
@@ -118,7 +134,7 @@ function renderDropdowns() {
   if (regAvailable.includes(regVal)) regSelect.value = regVal;
   document.getElementById("slotsLeft").textContent = `剩 ${regAvailable.length} 位組員`;
 
-  // Report dropdown: must be registered, exclude already reported
+  // 里程回報下拉：已報名但未回報的人
   const repSelect = document.getElementById("reportName");
   const repVal = repSelect.value;
   repSelect.innerHTML = '<option value="">請選取組員...</option>';
@@ -134,7 +150,6 @@ function renderMemberList() {
   const list = document.getElementById("membersList");
   const reportedNames = new Set(reports.map(r => r.name));
 
-  // Combine: reported members first, then registered-only
   const items = [
     ...reports.map(r => ({ type: "report", data: r })),
     ...registrations
@@ -151,6 +166,7 @@ function renderMemberList() {
     if (item.type === "report") {
       const r = item.data;
       const char = r.name.charAt(0);
+      const safeName = r.name.replace(/'/g, "\\'");
       return `
         <div class="member-card" data-id="${r.id}" data-type="report">
           <div class="avatar">${char}</div>
@@ -160,7 +176,7 @@ function renderMemberList() {
           </div>
           <div class="member-kcal">${r.kcal} <small>KCAL</small></div>
           <div class="member-actions">
-            <button class="icon-btn" onclick="openEdit('${r.id}', '${r.name}', ${r.actualKm})" title="編輯">✏️</button>
+            <button class="icon-btn" onclick="openEdit('${r.id}', '${safeName}', ${r.actualKm})" title="編輯">✏️</button>
             <button class="icon-btn del" onclick="deleteReport('${r.id}')" title="刪除">🗑️</button>
           </div>
         </div>`;
@@ -199,13 +215,18 @@ window.submitRegister = async function () {
     document.getElementById("registerName").value = "";
     showToast(`✅ ${name} 報名成功！`);
   } catch (e) {
-    showToast("送出失敗，請稍後再試");
+    showToast("送出失敗，請確認 Firebase 規則設定");
     console.error(e);
   }
   btn.disabled = false;
 };
 
 window.submitReport = async function () {
+  // ✅ 5/1 前鎖定
+  if (!isReportOpen()) {
+    showToast("⛔ 請於 5/1 再開始回報里程");
+    return;
+  }
   const name = document.getElementById("reportName").value;
   const km = parseFloat(document.getElementById("reportKm").value);
   if (!name) { showToast("請選取組員"); return; }
@@ -228,6 +249,10 @@ window.submitReport = async function () {
 
 // ── Edit / Delete ─────────────────────────────────────────────────────
 window.openEdit = function (id, name, km) {
+  if (!isReportOpen()) {
+    showToast("⛔ 請於 5/1 再開始回報里程");
+    return;
+  }
   editingId = id;
   document.getElementById("editName").textContent = name;
   document.getElementById("editKm").value = km;
@@ -242,6 +267,7 @@ window.closeModal = function (e) {
 
 window.saveEdit = async function () {
   if (!editingId) return;
+  if (!isReportOpen()) { showToast("⛔ 請於 5/1 再開始回報里程"); return; }
   const km = parseFloat(document.getElementById("editKm").value);
   if (!km || km <= 0) { showToast("請輸入有效里程"); return; }
   const kcal = calcKcal(km);
@@ -287,6 +313,7 @@ window.switchTab = function (tab) {
   document.getElementById("tabRegister").classList.toggle("active", tab === "register");
   document.getElementById("tabReport").classList.toggle("active", tab === "report");
   renderProgress();
+  renderReportLockUI();
 };
 
 // ── Toast ─────────────────────────────────────────────────────────────
@@ -294,7 +321,7 @@ function showToast(msg) {
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 2500);
+  setTimeout(() => t.classList.remove("show"), 2800);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────
