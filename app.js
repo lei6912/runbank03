@@ -1,25 +1,27 @@
 // ── Firebase ──────────────────────────────────────────────────────────
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getFirestore, collection, doc, addDoc, setDoc, deleteDoc, onSnapshot, query, orderBy
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  getDatabase, ref, push, set, update, remove, onValue
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA6gHbHb4Gp0y5bmDOp_JJVhuxPQARWpJM",
   authDomain: "runbank03.firebaseapp.com",
+  // ★ 請到 Firebase Console → Realtime Database → 資料 分頁，把最上方顯示的網址貼到這裡
+  databaseURL: "https://runbank03-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "runbank03",
   storageBucket: "runbank03.firebasestorage.app",
   messagingSenderId: "973280333324",
   appId: "1:973280333324:web:0426d89a943f5732a26829"
 };
 const app = initializeApp(firebaseConfig);
-const db  = getFirestore(app);
+const db  = getDatabase(app);
 
 // ── 設定 ──────────────────────────────────────────────────────────────
-const REG_COL   = "event04_registrations";   // 團結日02 報名
-const REP_COL   = "event04_reports";         // 團結日02 里程回報
-const SET_COL   = "event04_settings";        // 順子分配設定
-const SET_ID    = "straights";
+// Realtime Database 路徑（全部放在 event04 節點底下）
+const REG_PATH  = "event04/registrations";      // 團結日02 報名
+const REP_PATH  = "event04/reports";            // 團結日02 里程回報
+const SET_PATH  = "event04/settings/straights"; // 順子分配設定
 const DAYS      = ["9/5", "9/6"];
 const MIN_K     = 5;                          // 順子最小起始 K
 const STRAIGHT_LEN = 5;
@@ -124,16 +126,26 @@ function startListeners() {
   renderDropdowns();
   renderLockUI();
 
-  onSnapshot(query(collection(db, REG_COL), orderBy("createdAt")),
-    snap => { registrations = snap.docs.map(d => ({ id: d.id, ...d.data() })); render(); setBtn("submitRegister", false, "確認送出報名"); },
-    err  => { console.error(err); showToast("⚠️ Firebase 連線失敗，請確認 Firestore 規則"); setBtn("submitRegister", false, "確認送出報名"); }
+  // 連線狀態偵測（除錯用）
+  onValue(ref(db, ".info/connected"), snap => {
+    if (snap.val() === true) console.log("✅ 已連上 Realtime Database:", firebaseConfig.databaseURL);
+    else showToast("⚠️ 尚未連上資料庫，請確認 databaseURL");
+  });
+
+  const toList = snap => Object.entries(snap.val() || {})
+    .map(([id, d]) => ({ id, ...d }))
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+  onValue(ref(db, REG_PATH),
+    snap => { registrations = toList(snap); render(); },
+    err  => { console.error(err); showToast("⚠️ Firebase 連線失敗，請確認 Realtime Database 規則"); }
   );
-  onSnapshot(query(collection(db, REP_COL), orderBy("createdAt")),
-    snap => { reports = snap.docs.map(d => ({ id: d.id, ...d.data() })); render(); setBtn("submitReport", false, "確認送出里程"); },
+  onValue(ref(db, REP_PATH),
+    snap => { reports = toList(snap); render(); },
     err  => console.error(err)
   );
-  onSnapshot(doc(db, SET_COL, SET_ID),
-    snap => { if (snap.exists()) settings = { mode: "auto", assignments: {}, ...snap.data() }; render(); },
+  onValue(ref(db, SET_PATH),
+    snap => { settings = { mode: "auto", assignments: {}, ...(snap.val() || {}) }; if (!settings.assignments) settings.assignments = {}; render(); },
     err  => console.error(err)
   );
 }
@@ -329,14 +341,17 @@ async function submitRegister() {
   setBtn("submitRegister", true);
   try {
     const day = registerDay;
-    await addDoc(collection(db, REG_COL), { name, day, plannedKm: km, createdAt: Date.now() });
+    await push(ref(db, REG_PATH), { name, day, plannedKm: km, createdAt: Date.now() });
     $("registerKm").value = ""; $("registerName").value = ""; registerDay = "";
     $("registerPreview").textContent = "　";
+    updateDayPills();
     showToast(`✅ ${name} ${day} 報名成功！`);
   } catch (e) {
-    console.error(e); showToast("送出失敗，請確認 Firestore 規則已開放讀寫");
+    console.error(e); showToast("送出失敗：" + (e?.code || e?.message || e));
+  } finally {
+    isSubmitting = false;
     setBtn("submitRegister", false, "確認送出報名");
-  } finally { isSubmitting = false; }
+  }
 }
 
 // ── 送出里程 ──────────────────────────────────────────────────────────
@@ -354,14 +369,16 @@ async function submitReport() {
   isSubmitting = true;
   setBtn("submitReport", true);
   try {
-    await addDoc(collection(db, REP_COL), { name, day, actualKm: km, k, createdAt: Date.now() });
+    await push(ref(db, REP_PATH), { name, day, actualKm: km, k, createdAt: Date.now() });
     $("reportKm").value = ""; $("reportTarget").value = "";
     $("reportPreview").textContent = "　";
     showToast(k >= MIN_K ? `🃏 ${name} 抽到 ${k}K 卡！` : `✅ 已記錄 ${name} ${km}K（未達 ${MIN_K}K，無法湊順子）`);
   } catch (e) {
-    console.error(e); showToast("送出失敗，請稍後再試");
+    console.error(e); showToast("送出失敗：" + (e?.code || e?.message || e));
+  } finally {
+    isSubmitting = false;
     setBtn("submitReport", false, "確認送出里程");
-  } finally { isSubmitting = false; }
+  }
 }
 
 // ── 編輯 ──────────────────────────────────────────────────────────────
@@ -385,9 +402,9 @@ async function saveEdit() {
   if (!km || km <= 0) return showToast("請輸入有效里程");
   try {
     if (editing.type === "report") {
-      await setDoc(doc(db, REP_COL, editing.id), { actualKm: km, k: roundK(km) }, { merge: true });
+      await update(ref(db, `${REP_PATH}/${editing.id}`), { actualKm: km, k: roundK(km) });
     } else {
-      await setDoc(doc(db, REG_COL, editing.id), { plannedKm: km }, { merge: true });
+      await update(ref(db, `${REG_PATH}/${editing.id}`), { plannedKm: km });
     }
     closeModal(); showToast("✅ 已更新里程");
   } catch (e) { console.error(e); showToast("更新失敗"); }
@@ -396,14 +413,14 @@ async function saveEdit() {
 // ── 刪除 ──────────────────────────────────────────────────────────────
 async function deleteReport(id) {
   if (!confirm("確定要刪除這筆里程紀錄嗎？")) return;
-  try { await deleteDoc(doc(db, REP_COL, id)); showToast("已刪除里程紀錄"); }
+  try { await remove(ref(db, `${REP_PATH}/${id}`)); showToast("已刪除里程紀錄"); }
   catch { showToast("刪除失敗"); }
 }
 async function deleteRegistration(id) {
   const r = registrations.find(x => x.id === id);
   if (r && reports.some(p => p.name === r.name && p.day === r.day)) return showToast("此筆已有回報里程，請先刪除回報紀錄");
   if (!confirm("確定要取消這筆報名嗎？")) return;
-  try { await deleteDoc(doc(db, REG_COL, id)); showToast("已取消報名"); }
+  try { await remove(ref(db, `${REG_PATH}/${id}`)); showToast("已取消報名"); }
   catch { showToast("刪除失敗"); }
 }
 
@@ -417,7 +434,7 @@ async function setMode(mode) {
   }
   settings = next;
   render();
-  try { await setDoc(doc(db, SET_COL, SET_ID), next); }
+  try { await set(ref(db, SET_PATH), next); }
   catch (e) { console.error(e); showToast("模式儲存失敗"); }
 }
 async function setAssignment(id, group) {
@@ -425,7 +442,7 @@ async function setAssignment(id, group) {
   if (group) assignments[id] = Number(group); else delete assignments[id];
   settings = { ...settings, assignments };
   render();
-  try { await setDoc(doc(db, SET_COL, SET_ID), settings); }
+  try { await set(ref(db, SET_PATH), settings); }
   catch (e) { console.error(e); showToast("分配儲存失敗"); }
 }
 
