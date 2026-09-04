@@ -354,3 +354,35 @@ body {
 
 @keyframes fadeUp { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
 @keyframes pop { from { opacity: 0; transform: scale(.92) } to { opacity: 1; transform: none } }
+
+/* ── Plan / rules ── */
+.rule-list { display: flex; flex-direction: column; gap: 10px; }
+.rule { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.6; color: var(--ink); }
+.rule-text { flex: 1; }
+.rule b { color: var(--pink); }
+.rule-num {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--green); color: #fff;
+  font-family: var(--display); font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; margin-top: 1px;
+}
+.plan-tip { margin-top: 14px; font-size: 12px; color: var(--ink-soft); line-height: 1.6; }
+.straight-head .grp { font-family: var(--display); font-size: 11px; color: var(--ink-soft); font-weight: 600; }
+.straight.dup { border-color: var(--yellow); background: linear-gradient(135deg, #fffbea, #fff); }
+.straight.dup .straight-head .tag { background: var(--yellow); }
+
+/* ── Members (two-day layout) ── */
+.member-card { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 14px; }
+.member-head { display: flex; align-items: center; justify-content: space-between; }
+.member-name { font-size: 15px; font-weight: 900; }
+.member-status { font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+.member-status.ok { color: #3aa36b; }
+.day-row {
+  display: flex; align-items: center; gap: 10px; background: #faf8f1; border-radius: 12px; padding: 8px 10px;
+}
+.day-row .chip { flex-shrink: 0; }
+.day-row .target { flex: 1; font-size: 12px; color: var(--ink-soft); min-width: 0; }
+.day-row .target b { font-family: var(--display); color: var(--ink); font-size: 14px; }
+.day-row .actual { font-family: var(--display); font-weight: 700; font-size: 15px; color: var(--blue); white-space: nowrap; }
+.day-row .actual.none { color: #c9cdd6; font-family: var(--body); font-size: 12px; font-weight: 700; }
+.day-row .actual small { font-family: var(--body); font-size: 11px; color: var(--ink-soft); font-weight: 500; }
+.day-row .member-actions { flex-direction: row; gap: 2px; }
+.day-row .icon-btn { font-size: 15px; }

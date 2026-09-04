@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=2" />
+  <link rel="stylesheet" href="style.css?v=3" />
 </head>
 <body>
   <div class="bg-blobs" aria-hidden="true">
@@ -22,14 +22,14 @@
         <span class="info-pink">難易度 ★★★</span>
         <span class="info-green">9.5 <b>六</b> — 9.6 <b>日</b>　順子大連線</span>
       </div>
-      <p class="hero-note">用全組里程湊出 5 張連續的 K 卡，就是一組順子！完成 1 組得 2 分，每多 1 組再 +1 分。</p>
+      <p class="hero-note">用全組兩天的里程湊出 5 張連續的 K 卡，就是一組順子！完成 1 組得 2 分，每多 1 組不同連號再 +1 分。</p>
     </header>
 
     <!-- Progress -->
     <section class="panel progress-card">
       <div class="progress-top">
         <div class="stat">
-          <span class="stat-label" id="progressSublabel">預計湊出</span>
+          <span class="stat-label" id="progressSublabel">安排表目標</span>
           <span class="stat-value"><span id="straightCount">0</span><small>組順子</small></span>
         </div>
         <div class="stat stat-right">
@@ -53,54 +53,42 @@
 
     <!-- Tabs -->
     <div class="tab-wrap">
-      <button class="tab active" id="tabRegister">活動報名</button>
+      <button class="tab active" id="tabPlan">分組安排</button>
       <button class="tab" id="tabReport">里程回報</button>
     </div>
 
-    <!-- Register form -->
-    <section class="panel form-card" id="formRegister">
-      <div class="form-row-header">
-        <label>姓名 *</label>
-        <span class="slots-left" id="slotsLeft">剩 — 位未報名</span>
+    <!-- Plan notes -->
+    <section class="panel form-card" id="formPlan">
+      <div class="rule-list">
+        <div class="rule"><span class="rule-num">1</span><span class="rule-text">9/5、9/6 兩天的 K 卡<b>合併</b>排順子，哪天跑都可以。</span></div>
+        <div class="rule"><span class="rule-num">2</span><span class="rule-text">同一筆里程只能支援<b>一組</b>順子；兩天各跑一筆，可分別放進不同順子。</span></div>
+        <div class="rule"><span class="rule-num">3</span><span class="rule-text">相同的順子（例如兩組 5–9）只算<b>一組</b>，要多得分請湊不同連號。</span></div>
+        <div class="rule"><span class="rule-num">4</span><span class="rule-text">每位夥伴至少在六、日其中<b>一天</b>完成並上傳。</span></div>
       </div>
-      <select id="registerName" class="select-input">
-        <option value="">請選取組員...</option>
-      </select>
-
-      <label class="form-label">預計跑哪一天 *（兩天都跑請分別報名）</label>
-      <div class="day-pills" id="registerDayPills">
-        <button class="day-pill" data-day="9/5">9/5 <span>六</span></button>
-        <button class="day-pill" data-day="9/6">9/6 <span>日</span></button>
-      </div>
-
-      <label class="form-label">預計里程 (K) *</label>
-      <input type="number" id="registerKm" class="text-input" placeholder="例如：7.5" step="0.01" min="0" inputmode="decimal" />
-      <p class="k-preview" id="registerPreview">　</p>
-      <button class="submit-btn" id="submitRegister">確認送出報名</button>
+      <p class="plan-tip">上方為安排表的四組目標，實際跑完請到「里程回報」回填，系統會自動用實跑 K 卡重新排順子。</p>
     </section>
 
     <!-- Report form -->
     <section class="panel form-card" id="formReport" style="display:none">
-      <div class="lock-banner" id="reportLockBanner">
-        <div class="lock-icon">🔒</div>
-        <div class="lock-text">
-          <strong>里程回報尚未開放</strong>
-          <span>請於 9/5 活動當天再回填實際里程</span>
-        </div>
+      <div class="form-row-header">
+        <label>姓名 *</label>
+        <span class="slots-left" id="reportSlotsLeft">剩 — 筆未回報</span>
       </div>
-      <div id="reportFormInner">
-        <div class="form-row-header">
-          <label>姓名 / 日期 *</label>
-          <span class="slots-left" id="reportSlotsLeft">剩 — 筆未回報</span>
-        </div>
-        <select id="reportTarget" class="select-input">
-          <option value="">請選取組員...</option>
-        </select>
-        <label class="form-label">實際完成里程 (K) *</label>
-        <input type="number" id="reportKm" class="text-input" placeholder="例如：7.15" step="0.01" min="0" inputmode="decimal" />
-        <p class="k-preview" id="reportPreview">　</p>
-        <button class="submit-btn report-btn" id="submitReport">確認送出里程</button>
+      <select id="reportName" class="select-input">
+        <option value="">請選取組員...</option>
+      </select>
+
+      <label class="form-label">跑步日期 *</label>
+      <div class="day-pills" id="reportDayPills">
+        <button class="day-pill" data-day="9/5">9/5 <span>六</span></button>
+        <button class="day-pill" data-day="9/6">9/6 <span>日</span></button>
       </div>
+      <p class="k-preview" id="planHint">　</p>
+
+      <label class="form-label">實際完成里程 (K) *</label>
+      <input type="number" id="reportKm" class="text-input" placeholder="例如：7.15" step="0.01" min="0" inputmode="decimal" />
+      <p class="k-preview" id="reportPreview">　</p>
+      <button class="submit-btn report-btn" id="submitReport">確認送出里程</button>
     </section>
 
     <!-- Brand -->
@@ -139,6 +127,6 @@
     <div class="toast" id="toast"></div>
   </div>
 
-  <script type="module" src="app.js?v=2"></script>
+  <script type="module" src="app.js?v=3"></script>
 </body>
 </html>
